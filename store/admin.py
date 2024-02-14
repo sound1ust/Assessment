@@ -1,10 +1,12 @@
 from django.contrib import admin
-from django.conf.global_settings import AUTH_USER_MODEL
+from django.contrib.auth import get_user_model
+from django.urls import reverse
+from django.utils.html import format_html
 
 from store.models import Store, Product
 from store.models.orders import Order, OrderProduct
 
-user_model = AUTH_USER_MODEL
+user_model = get_user_model()
 
 
 class OrderProductInline(admin.TabularInline):
@@ -68,13 +70,11 @@ class StoreAdmin(admin.ModelAdmin):
     list_display = (
         'name',
         'description',
-        'admin',
-        'display_managers',
+        'admin_link',
+        'number_of_managers_link',
     )
 
     list_filter = (
-        'name',
-        'description',
         'admin',
     )
 
@@ -84,10 +84,29 @@ class StoreAdmin(admin.ModelAdmin):
         'admin__username',
     )
 
-    def display_managers(self, obj):
-        return ", ".join([manager.username for manager in obj.managers.all()])
+    def admin_link(self, obj):
+        link = reverse("admin:auth_user_change", args=(obj.admin.id,))
+        return format_html(
+            "<a href={}>{}: {}</a>",
+            link,
+            obj.admin.id,
+            obj.admin.username,
+        )
 
-    display_managers.short_description = 'Managers'
+    admin_link.short_description = "Admin"
+
+    def number_of_managers_link(self, obj):
+        query = "?id__in={}".format(
+            ','.join(map(str, obj.managers.values_list('id', flat=True)))
+        )
+        link = reverse("admin:auth_user_changelist") + query
+        return format_html(
+            "<a href={}>{}</a>",
+            link,
+            obj.managers.count(),
+        )
+
+    number_of_managers_link.short_description = "Number of managers"
 
 
 @admin.register(Product)
