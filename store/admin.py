@@ -23,13 +23,11 @@ class OrderAdmin(admin.ModelAdmin):
     )
 
     list_filter = (
-        'created_at',
         'store',
         'customer',
     )
 
     search_fields = (
-        'created_at',
         'store__name',
         'customer__username',
     )
@@ -55,13 +53,10 @@ class OrderProductAdmin(admin.ModelAdmin):
     list_filter = (
         'order',
         'product',
-        'quantity',
     )
 
     search_fields = (
-        'order__id',
         'product__name',
-        'quantity',
     )
 
 
@@ -72,6 +67,7 @@ class StoreAdmin(admin.ModelAdmin):
         'description',
         'admin_link',
         'number_of_managers_link',
+        'number_of_products_link',
     )
 
     list_filter = (
@@ -84,8 +80,17 @@ class StoreAdmin(admin.ModelAdmin):
         'admin__username',
     )
 
+    def get_queryset(self, request):
+        self.current_user = request.user
+        return super().get_queryset(request)
+
     def admin_link(self, obj):
+        # TODO or create custom perm?
+        if not self.current_user.has_perm("auth.view_user"):
+            return f"{obj.admin.id}: {obj.admin.username}"
+
         link = reverse("admin:auth_user_change", args=(obj.admin.id,))
+
         return format_html(
             "<a href={}>{}: {}</a>",
             link,
@@ -99,14 +104,32 @@ class StoreAdmin(admin.ModelAdmin):
         query = "?id__in={}".format(
             ','.join(map(str, obj.managers.values_list('id', flat=True)))
         )
+        count = obj.managers.count()
+
+        if not self.current_user.has_perm("store.view_store_products"):
+            return f"{count}"
+
         link = reverse("admin:auth_user_changelist") + query
         return format_html(
             "<a href={}>{}</a>",
             link,
-            obj.managers.count(),
+            count,
         )
 
     number_of_managers_link.short_description = "Number of managers"
+
+    def number_of_products_link(self, obj):
+        query = f"?store__id__exact={obj.id}"
+        # no need for select_related
+        count = Product.objects.filter(store__id=obj.id).count()
+
+        if not self.current_user.has_perm("store.view_store_products"):
+            return f"{count}"
+
+        link = reverse("admin:store_product_changelist") + query
+        return format_html("<a href={}>{}</a>", link, count)
+
+    number_of_products_link.short_description = "Number of products"
 
 
 @admin.register(Product)
@@ -120,17 +143,11 @@ class ProductAdmin(admin.ModelAdmin):
     )
 
     list_filter = (
-        'name',
-        'description',
         'store',
-        'price',
         'currency',
     )
 
     search_fields = (
         'name',
         'description',
-        'store__name',
-        'price',
-        'currency',
     )
