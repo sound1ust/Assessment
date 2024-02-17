@@ -32,3 +32,7 @@ class Store(models.Model):
     class Meta():
         verbose_name = "Store"
         verbose_name_plural = "Stores"
+        permissions = [
+            ("view_store_products", "Can view store products"),
+            ("view_store_managers", "Can view store managers"),
+        ]
