@@ -1,4 +1,3 @@
-from datetime import datetime
 from django.conf.global_settings import AUTH_USER_MODEL
 from django.db import models
 

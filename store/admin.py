@@ -14,6 +14,11 @@ class OrderProductInline(admin.TabularInline):
     extra = 1
 
 
+class StoreProductInline(admin.TabularInline):
+    model = Product
+    extra = 1
+
+
 @admin.register(Order)
 class OrderAdmin(admin.ModelAdmin):
     list_display = (
@@ -80,9 +85,35 @@ class StoreAdmin(admin.ModelAdmin):
         'admin__username',
     )
 
+    fields = (
+        'name',
+        'description',
+        'admin',
+        'managers',
+    )
+
+    autocomplete_fields = (
+        'admin',
+    )
+
+    filter_horizontal = (
+        'managers',
+    )
+
+    inlines = [
+        StoreProductInline,
+    ]
+
     def get_queryset(self, request):
+        queryset = super().get_queryset(request)
+        queryset = (queryset
+                    .select_related("admin")
+                    .prefetch_related("managers")
+                    )
+
         self.current_user = request.user
-        return super().get_queryset(request)
+
+        return queryset
 
     def admin_link(self, obj):
         # TODO or create custom perm?
@@ -120,7 +151,6 @@ class StoreAdmin(admin.ModelAdmin):
 
     def number_of_products_link(self, obj):
         query = f"?store__id__exact={obj.id}"
-        # no need for select_related
         count = Product.objects.filter(store__id=obj.id).count()
 
         if not self.current_user.has_perm("store.view_store_products"):
@@ -137,7 +167,7 @@ class ProductAdmin(admin.ModelAdmin):
     list_display = (
         'name',
         'description',
-        'store',
+        'store_link',
         'price',
         'currency',
     )
@@ -151,3 +181,27 @@ class ProductAdmin(admin.ModelAdmin):
         'name',
         'description',
     )
+
+    def get_queryset(self, request):
+        queryset = super().get_queryset(request)
+        queryset = queryset.select_related("store")
+
+        self.current_user = request.user
+
+        return queryset
+
+    def store_link(self, obj):
+        # TODO or create custom perm?
+        if not self.current_user.has_perm("store.view_store"):
+            return f"{obj.store.id}: {obj.store.name}"
+
+        link = reverse("admin:store_store_change", args=(obj.store.id,))
+
+        return format_html(
+            "<a href={}>{}: {}</a>",
+            link,
+            obj.store.id,
+            obj.store.name,
+        )
+
+    store_link.short_description = "Store"
